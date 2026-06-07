@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Agrega todos os recursos da camada de aplicação:
+# serviços Java, dashboard Next.js e o Ingress (API Gateway).
+# O kustomization raiz (infra/k8s/kustomization.yaml) referencia esta pasta
+# como um único bloco — facilitando a leitura pelo ArgoCD.
+resources:
+  - transaction-service
+  - account-service
+  - fintech-dashboard
+  - ingress.yaml

@@ -1,0 +1,82 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  # O nome da Application aparece na UI do ArgoCD e nos logs de sync.
+  name: fintech-mvp
+  # OBRIGATÓRIO: Applications devem sempre residir no namespace do ArgoCD.
+  # Recursos gerenciados por ela vão para spec.destination.namespace (fintech).
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: fintech-mvp
+    app.kubernetes.io/component: gitops
+  annotations:
+    # Notificações (opcional): integra com Slack/Teams via argocd-notifications.
+    # notifications.argoproj.io/subscribe.on-sync-failed.slack: fintech-alerts
+  # finalizer garante que o ArgoCD limpa todos os recursos gerenciados
+  # (Deployments, Services, Ingress…) quando a Application for deletada.
+  # Remova se quiser deletar a Application sem afetar os recursos no cluster.
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+
+spec:
+  # ── Fonte: repositório Git ──────────────────────────────────────────────────
+  source:
+    repoURL: https://github.com/joaobreno4/fintech-mvp
+    targetRevision: main          # branch monitorada pelo sync automático
+    path: infra/k8s               # pasta raiz do Kustomize no repositório
+
+    # Kustomize é detectado automaticamente pela presença do kustomization.yaml.
+    # O bloco abaixo é explícito para documentar e permitir overrides futuros.
+    kustomize:
+      # version: v5.4.2           # descomente para forçar versão específica do Kustomize
+      # images:                   # descomente para image tag override sem editar o YAML
+      #   - transaction-service=transaction-service:v1.2.0
+      #   - account-service=account-service:v1.2.0
+
+  # ── Destino: cluster e namespace alvo ──────────────────────────────────────
+  destination:
+    # https://kubernetes.default.svc = cluster local onde o ArgoCD está instalado.
+    # Para clusters remotos, substitua pela URL do kube-apiserver.
+    server: https://kubernetes.default.svc
+    namespace: fintech
+
+  # ── Política de Sync ────────────────────────────────────────────────────────
+  syncPolicy:
+    automated:
+      # prune: remove do cluster recursos que foram deletados do Git.
+      # Sem isso, recursos órfãos acumulam e podem causar conflitos.
+      prune: true
+
+      # selfHeal: reverte mudanças manuais feitas diretamente no cluster (kubectl apply/edit).
+      # Garante que o Git é sempre a única fonte de verdade (GitOps puro).
+      selfHeal: true
+
+      # allowEmpty: false (padrão) — impede sync se o Kustomize render retornar vazio,
+      # evitando deleção acidental de todos os recursos por erro de configuração.
+      allowEmpty: false
+
+    syncOptions:
+      # Cria o namespace fintech automaticamente se não existir.
+      # Equivalente a kubectl create namespace fintech antes do apply.
+      - CreateNamespace=true
+
+      # Usa server-side apply (SSA) em vez de client-side apply.
+      # Resolve conflitos de field ownership e é obrigatório para CRDs grandes.
+      - ServerSideApply=true
+
+      # Não falha o sync se um recurso individual tiver erro de validação.
+      # Útil durante bootstrap quando CRDs ainda estão sendo instalados.
+      - SkipDryRunOnMissingResource=true
+
+    # Retry automático em caso de falha de sync (ex: Kafka ainda inicializando).
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s       # espera inicial
+        factor: 2           # backoff exponencial: 10s, 20s, 40s, 80s, 160s
+        maxDuration: 3m     # teto do backoff
+
+  # ── Política de Health Check ────────────────────────────────────────────────
+  # O ArgoCD usa health checks nativos para Deployments, Services e Ingress.
+  # Status possíveis: Healthy | Progressing | Degraded | Suspended | Missing
+  revisionHistoryLimit: 5   # mantém os últimos 5 syncs para rollback via UI

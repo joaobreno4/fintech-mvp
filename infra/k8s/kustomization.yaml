@@ -1,7 +1,9 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# Namespace aplicado a todos os recursos filhos
+# Namespace padrão aplicado a todos os recursos filhos.
+# Exceção: argocd-app.yaml tem namespace: argocd no metadata e é protegido
+# pelo patch abaixo para não ser sobrescrito para "fintech".
 namespace: fintech
 
 resources:
@@ -15,12 +17,35 @@ resources:
   - infra/postgres
   - infra/kafka
 
-  # ── Aplicações ──────────────────────────────────────────────────────────────
-  - apps/transaction-service
-  - apps/account-service
-  - apps/fintech-dashboard
+  # ── Aplicações + API Gateway (Ingress NGINX) ─────────────────────────────────
+  # O kustomization.yaml em apps/ agrega os 3 serviços + ingress.yaml num bloco só.
+  - apps
 
   # ── Observabilidade ──────────────────────────────────────────────────────────
   - obs/jaeger
   - obs/prometheus
   - obs/grafana
+
+  # ── GitOps: ArgoCD ───────────────────────────────────────────────────────────
+  # Instala o ArgoCD (namespace argocd) via remote base pinado em v2.11.3.
+  # A Application que aponta para este repositório é registrada logo abaixo.
+  - argocd
+
+  # Application do ArgoCD: aponta para infra/k8s/ neste mesmo repositório.
+  # Após o primeiro apply manual, o ArgoCD assume o controle de todos os syncs.
+  - argocd-app.yaml
+
+# ── Patch de namespace para recursos que NÃO pertencem ao namespace fintech ──
+# O campo `namespace: fintech` acima seria aplicado a TODOS os recursos,
+# incluindo a Application do ArgoCD que precisa ficar em "argocd".
+# Este patch estratégico restaura o namespace correto para ela.
+patches:
+  - patch: |-
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: fintech-mvp
+        namespace: argocd
+    target:
+      kind: Application
+      name: fintech-mvp

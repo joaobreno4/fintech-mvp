@@ -1,0 +1,79 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fintech-api-gateway
+  namespace: fintech
+  labels:
+    app.kubernetes.io/name: fintech-api-gateway
+    app.kubernetes.io/part-of: fintech-mvp
+    app.kubernetes.io/component: api-gateway
+  annotations:
+    # ── Controlador ────────────────────────────────────────────────────────────
+    # Garante que apenas o NGINX Ingress Controller (addon do Minikube) processe
+    # este recurso. Sem isso, clusters com múltiplos controllers podem ignorá-lo.
+    kubernetes.io/ingress.class: "nginx"
+
+    # ── Rewrite ────────────────────────────────────────────────────────────────
+    # Strip do prefixo /api antes de encaminhar ao backend.
+    # Requisição externa:  GET /api/transfers  →  backend recebe: GET /transfers
+    # O grupo de captura ($2) preserva tudo após /api (incluindo query strings).
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+
+    # ── Rate Limiting — Proteção contra abuso de Pix ───────────────────────────
+    # Limite por IP: 5 requisições por minuto (RPM).
+    # Adequado para simular proteção de endpoint financeiro em dev/staging.
+    nginx.ingress.kubernetes.io/limit-rpm: "5"
+
+    # Máximo de conexões simultâneas por IP.
+    # Complementa o RPM: impede conexões longas que esgotam workers do NGINX.
+    nginx.ingress.kubernetes.io/limit-connections: "3"
+
+    # Burst multiplier: permite picos curtos de até 5×5 = 10 req antes de
+    # retornar HTTP 503. Evita falsos positivos em clientes legítimos com retry.
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "2"
+
+    # Resposta retornada ao cliente quando o rate limit é atingido.
+    # 429 Too Many Requests é o código semântico correto (RFC 6585).
+    nginx.ingress.kubernetes.io/limit-rps: "1"
+
+    # ── Segurança de Headers ───────────────────────────────────────────────────
+    # Injeta headers de segurança em todas as respostas via snippet.
+    # Equivalente a um WAF mínimo sem custo adicional de infraestrutura.
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-Frame-Options: DENY";
+      more_set_headers "Referrer-Policy: strict-origin-when-cross-origin";
+
+spec:
+  # ingressClassName é obrigatório no Kubernetes 1.18+ como substituto da
+  # annotation kubernetes.io/ingress.class (mantida acima por compatibilidade).
+  ingressClassName: nginx
+
+  rules:
+    - host: fintech.local
+      http:
+        paths:
+          # ── Rota principal: API do transaction-service ─────────────────────
+          # /api/(.*)  →  transaction-service-svc:8080/$1
+          # Exemplos:
+          #   POST http://fintech.local/api/transfers        → :8080/transfers
+          #   GET  http://fintech.local/api/actuator/health  → :8080/actuator/health
+          - path: /api(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: transaction-service-svc
+                port:
+                  number: 8080
+
+          # ── Rota do dashboard (frontend Next.js) ───────────────────────────
+          # Tráfego raiz encaminhado ao dashboard sem rewrite.
+          # Requer ajuste no rewrite-target se o Next.js usar basePath.
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: fintech-dashboard-svc
+                port:
+                  number: 3001
