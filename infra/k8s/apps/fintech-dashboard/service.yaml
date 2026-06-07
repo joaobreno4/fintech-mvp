@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: fintech-dashboard-svc
+  namespace: fintech
+  labels:
+    app.kubernetes.io/name: fintech-dashboard
+    app.kubernetes.io/part-of: fintech-mvp
+    app.kubernetes.io/component: frontend
+spec:
+  selector:
+    app.kubernetes.io/name: fintech-dashboard
+  # NodePort: UI acessível em http://$(minikube ip):30301
+  type: NodePort
+  ports:
+    - name: http
+      port: 3001
+      targetPort: http
+      nodePort: 30301

@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger-svc
+  namespace: fintech
+  labels:
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/part-of: fintech-mvp
+    app.kubernetes.io/component: observability
+spec:
+  selector:
+    app.kubernetes.io/name: jaeger
+  # NodePort: UI acessível em http://$(minikube ip):30686
+  type: NodePort
+  ports:
+    - name: ui
+      port: 16686
+      targetPort: ui
+      nodePort: 30686
+    - name: otlp-grpc
+      port: 4317
+      targetPort: otlp-grpc
+    - name: otlp-http
+      port: 4318
+      targetPort: otlp-http

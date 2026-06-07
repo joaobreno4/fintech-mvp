@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-config
+  namespace: fintech
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: fintech-mvp
+    app.kubernetes.io/component: observability
+data:
+  # Datasource provisionado automaticamente na inicialização do Grafana.
+  # Aponta para o Service interno do Prometheus via DNS do cluster.
+  datasource.yml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus-svc.fintech.svc.cluster.local:9090
+        isDefault: true
+        editable: false

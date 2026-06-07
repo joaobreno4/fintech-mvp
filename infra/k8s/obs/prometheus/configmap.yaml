@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: fintech
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/part-of: fintech-mvp
+    app.kubernetes.io/component: observability
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 5s
+      evaluation_interval: 5s
+
+    scrape_configs:
+      - job_name: 'transaction-service'
+        metrics_path: '/actuator/prometheus'
+        static_configs:
+          # DNS interno K8s: <service>.<namespace>.svc.cluster.local
+          - targets: ['transaction-service-svc.fintech.svc.cluster.local:8080']
+
+      - job_name: 'account-service'
+        metrics_path: '/actuator/prometheus'
+        static_configs:
+          - targets: ['account-service-svc.fintech.svc.cluster.local:8081']

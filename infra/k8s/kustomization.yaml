@@ -18,9 +18,9 @@ resources:
   # ── Aplicações ──────────────────────────────────────────────────────────────
   - apps/transaction-service
   - apps/account-service
-  # - apps/fintech-dashboard   # Etapa 3
+  - apps/fintech-dashboard
 
-  # ── Observabilidade (Etapa 4) ───────────────────────────────────────────────
-  # - observability/jaeger
-  # - observability/prometheus
-  # - observability/grafana
+  # ── Observabilidade ──────────────────────────────────────────────────────────
+  - obs/jaeger
+  - obs/prometheus
+  - obs/grafana

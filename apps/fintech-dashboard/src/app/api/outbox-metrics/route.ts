@@ -9,8 +9,13 @@ function extractGauge(prometheusText: string, metricName: string): number {
 }
 
 export async function GET() {
+  // Dev local: http://localhost:8090
+  // K8s: http://transaction-service-svc.fintech.svc.cluster.local:8080
+  const backendUrl =
+    process.env.TRANSACTION_SERVICE_URL ?? "http://localhost:8090";
+
   try {
-    const res = await fetch("http://localhost:8090/actuator/prometheus", {
+    const res = await fetch(`${backendUrl}/actuator/prometheus`, {
       // Sem cache — sempre dados frescos para o polling de 5s
       cache: "no-store",
     });
