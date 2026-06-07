@@ -1,12 +1,12 @@
 server:
-  port: 8080
+  port: 8081
 
 spring:
   application:
-    name: transaction-service
+    name: account-service
 
   datasource:
-    url: jdbc:postgresql://postgres:5432/fintech
+    url: jdbc:postgresql://localhost:5432/fintech
     username: fintech_admin
     password: fintech_pass
     driver-class-name: org.postgresql.Driver
@@ -22,18 +22,13 @@ spring:
     open-in-view: false
 
   kafka:
-    bootstrap-servers: kafka:29092
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.StringSerializer
-      acks: all
-      properties:
-        enable.idempotence: true
-        max.in.flight.requests.per.connection: 1
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: account-service-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
 
-# ==========================================
-# CONFIGURAÇÃO DE ACTUATOR E METRICAS (SRE)
-# ==========================================
 management:
   endpoints:
     web:

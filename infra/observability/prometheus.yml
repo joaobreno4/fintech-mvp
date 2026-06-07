@@ -2,8 +2,16 @@ global:
   scrape_interval: 5s
   evaluation_interval: 5s
 
+rule_files:
+  - "prometheus.rules.yml"
+
 scrape_configs:
   - job_name: 'transaction-service'
     metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['host.docker.internal:8082']
+      - targets: ['transaction-service:8080']
+
+  - job_name: 'account-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['account-service:8081']

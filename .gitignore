@@ -1,0 +1,30 @@
+# Maven build artifacts
+target/
+*.jar
+*.war
+*.class
+
+# Node / Next.js
+node_modules/
+.next/
+.npm/
+npm-debug.log*
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Docker volumes
+pg_data/

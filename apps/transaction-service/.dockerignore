@@ -1,0 +1,16 @@
+# Git
+.git
+.gitignore
+
+# Maven / IDE
+.mvn
+target/
+*.md
+HELP.md
+.idea/
+*.iml
+*.class
+
+# OS
+.DS_Store
+Thumbs.db

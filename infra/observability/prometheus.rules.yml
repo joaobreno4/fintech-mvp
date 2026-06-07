@@ -1,0 +1,43 @@
+groups:
+  - name: transaction_service_alerts
+    interval: 30s
+    rules:
+      - alert: HighTransferErrorRate
+        expr: |
+          (
+            sum(rate(http_server_requests_seconds_count{job="transaction-service",uri="/transfers",status=~"5.."}[2m]))
+            /
+            sum(rate(http_server_requests_seconds_count{job="transaction-service",uri="/transfers"}[2m]))
+          ) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          service: transaction-service
+        annotations:
+          summary: "Taxa de erro 5xx em /transfers acima de 5%"
+          description: "A taxa de erro no endpoint de transferências excedeu 5% nos últimos 2 minutos."
+
+      - alert: JVMHeapHighUsage
+        expr: |
+          (
+            sum(jvm_memory_used_bytes{job="transaction-service",area="heap"})
+            /
+            sum(jvm_memory_max_bytes{job="transaction-service",area="heap"})
+          ) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          service: transaction-service
+        annotations:
+          summary: "Heap JVM acima de 85% por mais de 5 minutos"
+          description: "O consumo de memória Heap do transaction-service está acima de 85%, com risco iminente de OOMKill no WSL2."
+
+      - alert: OutboxDeadLetterEvent
+        expr: outbox_dead_letter_events{job="transaction-service"} > 0
+        for: 0m
+        labels:
+          severity: critical
+          service: transaction-service
+        annotations:
+          summary: "Evento(s) DEAD_LETTER detectado(s) no Outbox"
+          description: "Há {{ $value }} evento(s) no status DEAD_LETTER. Isso indica falha crítica de integração com Kafka que exige intervenção manual imediata."
