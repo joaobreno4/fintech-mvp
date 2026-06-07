@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: account-service-svc
+  namespace: fintech
+  labels:
+    app.kubernetes.io/name: account-service
+    app.kubernetes.io/part-of: fintech-mvp
+    app.kubernetes.io/component: backend
+spec:
+  # ClusterIP: o account-service é um consumer Kafka interno.
+  # Exposto apenas para health checks e scraping do Prometheus.
+  # Para acesso externo em dev: kubectl port-forward svc/account-service-svc 8081:8081 -n fintech
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: account-service
+  ports:
+    - name: http
+      port: 8081
+      targetPort: http
+      protocol: TCP

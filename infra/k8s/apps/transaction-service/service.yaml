@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: transaction-service-svc
+  namespace: fintech
+  labels:
+    app.kubernetes.io/name: transaction-service
+    app.kubernetes.io/part-of: fintech-mvp
+    app.kubernetes.io/component: backend
+spec:
+  # ClusterIP: acesso interno ao cluster.
+  # O fintech-dashboard e outros serviços consomem via DNS:
+  #   http://transaction-service-svc:8080
+  # Para acesso externo em dev: kubectl port-forward svc/transaction-service-svc 8090:8080 -n fintech
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: transaction-service
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP

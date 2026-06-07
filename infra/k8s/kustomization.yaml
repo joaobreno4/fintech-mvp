@@ -8,18 +8,19 @@ resources:
   # ── Base ────────────────────────────────────────────────────────────────────
   - base/namespace.yaml
   - base/secret.yaml
+  - base/secret-app.yaml
   - base/configmap.yaml
 
   # ── Infraestrutura ──────────────────────────────────────────────────────────
   - infra/postgres
   - infra/kafka
 
-  # ── Aplicações (Etapa 2) ────────────────────────────────────────────────────
-  # - apps/transaction-service
-  # - apps/account-service
-  # - apps/fintech-dashboard
+  # ── Aplicações ──────────────────────────────────────────────────────────────
+  - apps/transaction-service
+  - apps/account-service
+  # - apps/fintech-dashboard   # Etapa 3
 
-  # ── Observabilidade (Etapa 3) ───────────────────────────────────────────────
+  # ── Observabilidade (Etapa 4) ───────────────────────────────────────────────
   # - observability/jaeger
   # - observability/prometheus
   # - observability/grafana
