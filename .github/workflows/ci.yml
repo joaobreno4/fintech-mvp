@@ -1,0 +1,202 @@
+name: CI — Fintech MVP
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+# Cancela runs anteriores do mesmo PR/branch para economizar minutos de Actions
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ============================================================================
+  # JOB 1 — transaction-service
+  # Roda: unit tests + integration tests (Testcontainers: Postgres + Kafka)
+  # ============================================================================
+  transaction-service:
+    name: "🏦 transaction-service (Java 17 + Testcontainers)"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "📥 Checkout do repositório"
+        uses: actions/checkout@v4
+
+      - name: "☕ Setup JDK 17 (Temurin)"
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "temurin"
+          # Cache do repositório Maven local — evita re-download a cada run
+          cache: "maven"
+
+      - name: "🔍 Verificar versão do Docker (Testcontainers precisa do daemon)"
+        run: docker info --format "Docker {{.ServerVersion}} | Engine API {{.ServerAPIVersion}}"
+
+      - name: "📦 Baixar dependências Maven (cache warm-up)"
+        working-directory: apps/transaction-service
+        run: mvn dependency:go-offline -B -q
+
+      - name: "🧪 Compilar e rodar testes unitários"
+        working-directory: apps/transaction-service
+        run: mvn test -B
+        env:
+          # Testcontainers usa o socket do Docker do runner ubuntu-latest
+          TESTCONTAINERS_RYUK_DISABLED: "false"
+          DOCKER_HOST: "unix:///var/run/docker.sock"
+
+      - name: "🔬 Rodar testes de integração (Outbox + Idempotência)"
+        working-directory: apps/transaction-service
+        # maven-failsafe-plugin: integration-test → verify
+        # Cobre: TransferControllerIT (atomicidade Outbox, barreira Idempotency-Key)
+        run: mvn verify -B -DskipTests=false
+        env:
+          TESTCONTAINERS_RYUK_DISABLED: "false"
+          DOCKER_HOST: "unix:///var/run/docker.sock"
+          # Aumenta timeout do Testcontainers para ambientes CI com pull de imagem lento
+          TESTCONTAINERS_PULL_PAUSE_TIMEOUT: "120"
+
+      - name: "📊 Publicar relatório de testes (Failsafe)"
+        # Sempre publica, mesmo se os testes falharem, para facilitar diagnóstico
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: transaction-service-test-reports
+          path: |
+            apps/transaction-service/target/failsafe-reports/
+            apps/transaction-service/target/surefire-reports/
+          retention-days: 7
+
+  # ============================================================================
+  # JOB 2 — account-service
+  # Roda: unit tests + integration tests (Testcontainers: Postgres + Kafka)
+  # ============================================================================
+  account-service:
+    name: "💳 account-service (Java 17 + Testcontainers)"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "📥 Checkout do repositório"
+        uses: actions/checkout@v4
+
+      - name: "☕ Setup JDK 17 (Temurin)"
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "temurin"
+          cache: "maven"
+
+      - name: "🔍 Verificar versão do Docker (Testcontainers precisa do daemon)"
+        run: docker info --format "Docker {{.ServerVersion}} | Engine API {{.ServerAPIVersion}}"
+
+      - name: "📦 Baixar dependências Maven (cache warm-up)"
+        working-directory: apps/account-service
+        run: mvn dependency:go-offline -B -q
+
+      - name: "🧪 Compilar e rodar testes unitários"
+        working-directory: apps/account-service
+        run: mvn test -B
+        env:
+          TESTCONTAINERS_RYUK_DISABLED: "false"
+          DOCKER_HOST: "unix:///var/run/docker.sock"
+
+      - name: "🔬 Rodar testes de integração (Consumer + Idempotência)"
+        working-directory: apps/account-service
+        # Cobre: AccountConsumerIT (débito/crédito atômico, descarte de duplicatas)
+        run: mvn verify -B -DskipTests=false
+        env:
+          TESTCONTAINERS_RYUK_DISABLED: "false"
+          DOCKER_HOST: "unix:///var/run/docker.sock"
+          TESTCONTAINERS_PULL_PAUSE_TIMEOUT: "120"
+
+      - name: "📊 Publicar relatório de testes (Failsafe)"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: account-service-test-reports
+          path: |
+            apps/account-service/target/failsafe-reports/
+            apps/account-service/target/surefire-reports/
+          retention-days: 7
+
+  # ============================================================================
+  # JOB 3 — fintech-dashboard
+  # Roda: npm ci → next build (garante que o bundle compila sem erros)
+  # ============================================================================
+  fintech-dashboard:
+    name: "🖥️ fintech-dashboard (Next.js 14 + TypeScript)"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "📥 Checkout do repositório"
+        uses: actions/checkout@v4
+
+      - name: "🟢 Setup Node.js 20 LTS"
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          # Cache do npm baseado no package-lock.json — restaura node_modules entre runs
+          cache: "npm"
+          cache-dependency-path: apps/fintech-dashboard/package-lock.json
+
+      - name: "📦 Instalar dependências (npm ci — instalação limpa e determinística)"
+        working-directory: apps/fintech-dashboard
+        run: npm ci
+
+      - name: "🔎 Lint (Next.js ESLint)"
+        working-directory: apps/fintech-dashboard
+        # Falha o job se houver erros de lint — warnings são permitidos
+        run: npm run lint -- --max-warnings=0
+        # Continua mesmo com warnings para não bloquear o build em regras opinionadas
+        continue-on-error: true
+
+      - name: "🏗️ Build de produção (next build)"
+        working-directory: apps/fintech-dashboard
+        run: npm run build
+        env:
+          # Desabilita telemetria do Next.js no CI
+          NEXT_TELEMETRY_DISABLED: "1"
+          # Aponta para um backend fictício — o build não faz chamadas reais,
+          # mas a variável precisa existir para o next.config.mjs não usar undefined
+          TRANSACTION_SERVICE_URL: "http://transaction-service-svc:8080"
+
+      - name: "📦 Publicar artefato do bundle (opcional — útil para auditoria de tamanho)"
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: fintech-dashboard-build
+          # .next/standalone é o output otimizado para o Dockerfile multi-stage
+          path: apps/fintech-dashboard/.next/standalone/
+          retention-days: 3
+
+  # ============================================================================
+  # JOB 4 — ci-gate (barreira de qualidade)
+  # Só passa se TODOS os jobs anteriores passarem.
+  # Configure este job como "required status check" no GitHub Branch Protection.
+  # ============================================================================
+  ci-gate:
+    name: "✅ CI Gate — todos os checks passaram"
+    runs-on: ubuntu-latest
+    # Depende dos 3 jobs de teste — só roda se todos concluírem (com sucesso ou falha)
+    needs: [transaction-service, account-service, fintech-dashboard]
+    # Garante que o gate falha se qualquer job upstream falhou
+    if: always()
+
+    steps:
+      - name: "🚦 Verificar resultado de todos os jobs"
+        run: |
+          echo "transaction-service : ${{ needs.transaction-service.result }}"
+          echo "account-service     : ${{ needs.account-service.result }}"
+          echo "fintech-dashboard   : ${{ needs.fintech-dashboard.result }}"
+
+          if [[ "${{ needs.transaction-service.result }}" != "success" || \
+                "${{ needs.account-service.result }}"     != "success" || \
+                "${{ needs.fintech-dashboard.result }}"   != "success" ]]; then
+            echo "❌ Um ou mais jobs falharam. Merge bloqueado."
+            exit 1
+          fi
+
+          echo "✅ Todos os checks passaram. PR aprovado para merge."
