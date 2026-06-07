@@ -79,9 +79,10 @@ public class KafkaConsumerConfig {
                 new FixedBackOff(BACKOFF_INTERVAL_MS, BACKOFF_MAX_ATTEMPTS)
         );
 
-        // Erros de desserialização JSON são não-recuperáveis:
-        // vão direto para a DLQ sem consumir as 3 tentativas.
-        handler.addNotRetryableExceptions(JsonProcessingException.class);
+        // Erros não-recuperáveis: vão direto para a DLQ sem consumir as 3 tentativas.
+        // JsonProcessingException: payload corrompido/inválido — retry não resolve.
+        // IllegalStateException: saldo insuficiente — retry não resolve.
+        handler.addNotRetryableExceptions(JsonProcessingException.class, IllegalStateException.class);
 
         handler.setRetryListeners((record, ex, deliveryAttempt) ->
                 log.warn("[RETRY] Tentativa {}/{} para offset {} no tópico {}. Erro: {}",

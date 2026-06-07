@@ -21,7 +21,9 @@ spec:
     spec:
       containers:
         - name: prometheus
-          image: prom/prometheus:latest
+          # Tag pinada: garante builds determinísticos e rollback seguro em produção.
+          # Atualize explicitamente após validar o changelog da nova versão.
+          image: prom/prometheus:v2.52.0
           imagePullPolicy: IfNotPresent
           args:
             - "--config.file=/etc/prometheus/prometheus.yml"

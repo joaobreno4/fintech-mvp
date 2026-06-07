@@ -9,10 +9,14 @@ import org.slf4j.LoggerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @Service
 public class OutboxRelayService {
@@ -20,6 +24,8 @@ public class OutboxRelayService {
     private static final Logger log = LoggerFactory.getLogger(OutboxRelayService.class);
     private static final String TOPIC = "transaction.events";
     private static final int MAX_ATTEMPTS = 5;
+    // Timeout máximo aguardando ACK do broker — evita bloqueio indefinido da thread do scheduler
+    private static final long KAFKA_SEND_TIMEOUT_SECONDS = 30L;
 
     private final OutboxEventRepository repository;
     private final KafkaTemplate<String, String> kafkaTemplate;
@@ -38,35 +44,61 @@ public class OutboxRelayService {
                 repo -> repo.countByStatus(OutboxStatus.SENT));
     }
 
-    // A mágica que faltava: Abre a transação antes do lock pessimista!
+    // Fase 1: lê os candidatos e tenta o envio Kafka FORA de qualquer transação.
+    // Isso evita manter uma conexão do pool aberta durante o I/O de rede com o broker,
+    // eliminando o gargalo de concorrência e o risco de timeout de conexão.
     @Scheduled(fixedDelay = 5000)
-    @Transactional 
     public void relayEvents() {
-        // Puxa do banco apenas PENDING com o next_attempt_at vencido
         List<OutboxEvent> events = repository.findTop100ByStatusAndNextAttemptAtLessThanEqualOrderByNextAttemptAtAsc(
                 OutboxStatus.PENDING, LocalDateTime.now()
         );
 
         for (OutboxEvent event : events) {
-            // Emite o SELECT FOR UPDATE SKIP LOCKED via repositório
-            repository.findByIdWithLock(event.getId()).ifPresent(lockedEvent -> {
-                try {
-                    // Envia para o Kafka usando o aggregateId (UUID da transação) como Chave de Partição
-                    // O .get() força o envio síncrono, respeitando o acks=all
-                    kafkaTemplate.send(TOPIC, lockedEvent.getAggregateId(), lockedEvent.getPayload()).get();
-                    
-                    lockedEvent.setStatus(OutboxStatus.SENT);
-                    lockedEvent.setUpdatedAt(LocalDateTime.now());
-                    log.info("[OUTBOX] Evento {} enviado com sucesso para o Kafka.", lockedEvent.getId());
-                    
-                } catch (Exception e) {
-                    log.error("[OUTBOX] Falha de rede ao enviar evento {} para o Kafka.", lockedEvent.getId(), e);
-                    handleFailure(lockedEvent);
-                }
-                
-                // O Hibernate gerencia o flush automático no fim da transação
-                repository.save(lockedEvent);
-            });
+            // Fase 2: adquire o lock pessimista e persiste o resultado em transação curta,
+            // sem I/O de rede dentro dela.
+            processEventWithLock(event.getId());
+        }
+    }
+
+    // REQUIRES_NEW garante transação própria por evento: um erro em um evento
+    // não faz rollback dos eventos já processados no mesmo ciclo.
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void processEventWithLock(java.util.UUID eventId) {
+        repository.findByIdWithLock(eventId).ifPresent(lockedEvent -> {
+            boolean sent = sendToKafka(lockedEvent);
+            if (sent) {
+                lockedEvent.setStatus(OutboxStatus.SENT);
+                lockedEvent.setUpdatedAt(LocalDateTime.now());
+                log.info("[OUTBOX] Evento {} enviado com sucesso para o Kafka.", lockedEvent.getId());
+            } else {
+                handleFailure(lockedEvent);
+            }
+            repository.save(lockedEvent);
+        });
+    }
+
+    // Envio síncrono com timeout explícito. Retorna true em sucesso, false em falha.
+    // InterruptedException é tratada separadamente para respeitar o contrato de interrupção
+    // de threads do Java (re-interrupt antes de retornar).
+    private boolean sendToKafka(OutboxEvent event) {
+        try {
+            kafkaTemplate.send(TOPIC, event.getAggregateId(), event.getPayload())
+                         .get(KAFKA_SEND_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            return true;
+        } catch (InterruptedException e) {
+            // Restaura o flag de interrupção da thread antes de retornar —
+            // sem isso o scheduler poderia ignorar sinais de shutdown da JVM.
+            Thread.currentThread().interrupt();
+            log.error("[OUTBOX] Thread interrompida ao enviar evento {}.", event.getId(), e);
+            return false;
+        } catch (ExecutionException e) {
+            log.error("[OUTBOX] Falha de broker ao enviar evento {}. Causa: {}",
+                      event.getId(), e.getCause() != null ? e.getCause().getMessage() : e.getMessage());
+            return false;
+        } catch (TimeoutException e) {
+            log.error("[OUTBOX] Timeout ({}s) ao aguardar ACK do Kafka para evento {}.",
+                      KAFKA_SEND_TIMEOUT_SECONDS, event.getId());
+            return false;
         }
     }
 

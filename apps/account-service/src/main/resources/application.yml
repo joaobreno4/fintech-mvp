@@ -6,19 +6,24 @@ spring:
     name: account-service
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/fintech
-    username: fintech_admin
-    password: fintech_pass
+    # Valores resolvidos em runtime via variável de ambiente (K8s Secret / .env local).
+    # Nunca commitar credenciais reais neste arquivo.
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/fintech}
+    username: ${SPRING_DATASOURCE_USERNAME:fintech_admin}
+    password: ${SPRING_DATASOURCE_PASSWORD:changeme}
     driver-class-name: org.postgresql.Driver
 
   jpa:
     hibernate:
-      ddl-auto: update
-    show-sql: true
+      # 'validate' é o padrão seguro para produção — use Flyway/Liquibase para migrações.
+      # Sobrescreva com SPRING_JPA_HIBERNATE_DDL_AUTO=update apenas em dev local.
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:validate}
+    # show-sql gera volume de log alto em produção — desativar via env
+    show-sql: ${SPRING_JPA_SHOW_SQL:false}
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
+        dialect: ${SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT:org.hibernate.dialect.PostgreSQLDialect}
+        format_sql: false
     open-in-view: false
 
   kafka:

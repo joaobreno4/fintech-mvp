@@ -46,8 +46,17 @@ public class AccountService {
         Account fromAccount = findOrCreateAccount(payload.getFromAccountId());
         Account toAccount   = findOrCreateAccount(payload.getToAccountId());
 
-        fromAccount.setBalanceCents(fromAccount.getBalanceCents() - payload.getAmountCents());
-        toAccount.setBalanceCents(toAccount.getBalanceCents()   + payload.getAmountCents());
+        long debitAmount = payload.getAmountCents();
+        if (fromAccount.getBalanceCents() < debitAmount) {
+            // Lança exceção não-recuperável: a mensagem vai direto para a DLQ sem retries,
+            // pois saldo insuficiente não se resolve com novas tentativas.
+            throw new IllegalStateException(String.format(
+                    "[TRANSFER] Saldo insuficiente na conta %s: disponível %d cts, solicitado %d cts. Evento: %s",
+                    payload.getFromAccountId(), fromAccount.getBalanceCents(), debitAmount, eventId));
+        }
+
+        fromAccount.setBalanceCents(fromAccount.getBalanceCents() - debitAmount);
+        toAccount.setBalanceCents(toAccount.getBalanceCents()   + debitAmount);
 
         LocalDateTime now = LocalDateTime.now();
         fromAccount.setUpdatedAt(now);

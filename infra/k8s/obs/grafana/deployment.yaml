@@ -21,7 +21,8 @@ spec:
     spec:
       containers:
         - name: grafana
-          image: grafana/grafana:latest
+          # Tag pinada: garante builds determinísticos e rollback seguro em produção.
+          image: grafana/grafana:11.1.0
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -29,8 +30,16 @@ spec:
           env:
             - name: GF_SECURITY_ADMIN_USER
               value: "admin"
+            # Senha lida do Secret K8s — nunca em plaintext no manifest.
+            # Crie o Secret antes do deploy:
+            #   kubectl create secret generic grafana-secret \
+            #     --from-literal=admin-password='<SENHA_FORTE>' \
+            #     -n fintech
             - name: GF_SECURITY_ADMIN_PASSWORD
-              value: "admin"
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-secret
+                  key: admin-password
             - name: GF_USERS_DEFAULT_THEME
               value: "dark"
             # Desabilita telemetria para dev

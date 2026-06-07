@@ -149,10 +149,9 @@ jobs:
 
       - name: "🔎 Lint (Next.js ESLint)"
         working-directory: apps/fintech-dashboard
-        # Falha o job se houver erros de lint — warnings são permitidos
+        # --max-warnings=0: qualquer warning vira erro e bloqueia o pipeline.
+        # continue-on-error removido: lint é gate obrigatório antes do build.
         run: npm run lint -- --max-warnings=0
-        # Continua mesmo com warnings para não bloquear o build em regras opinionadas
-        continue-on-error: true
 
       - name: "🏗️ Build de produção (next build)"
         working-directory: apps/fintech-dashboard

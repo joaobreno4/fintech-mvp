@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_DB: fintech
       POSTGRES_USER: fintech_admin
-      POSTGRES_PASSWORD: fintech_pass
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports: ["5432:5432"]
     volumes:
       - pg_data:/var/lib/postgresql/data
@@ -68,7 +68,7 @@ services:
     ports: ["3000:3000"]
     environment:
       GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
       GF_USERS_DEFAULT_THEME: dark
     volumes:
       - ./observability/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
@@ -86,9 +86,9 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/fintech
       SPRING_DATASOURCE_USERNAME: fintech_admin
-      SPRING_DATASOURCE_PASSWORD: fintech_pass
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
-      SPRING_JPA_SHOW_SQL: "true"
+      SPRING_JPA_SHOW_SQL: "false"
       SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     ports:
@@ -119,9 +119,9 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/fintech
       SPRING_DATASOURCE_USERNAME: fintech_admin
-      SPRING_DATASOURCE_PASSWORD: fintech_pass
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
-      SPRING_JPA_SHOW_SQL: "true"
+      SPRING_JPA_SHOW_SQL: "false"
       SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     ports:
