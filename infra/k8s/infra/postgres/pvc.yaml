@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: fintech
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/part-of: fintech-mvp
+    app.kubernetes.io/component: database
+spec:
+  accessModes:
+    - ReadWriteOnce          # Um único nó monta o volume (adequado para dev local)
+  resources:
+    requests:
+      storage: 2Gi
+  # Em kind/minikube o StorageClass padrão (standard) provisiona automaticamente.
+  # Remova a linha abaixo se quiser usar outro StorageClass.
+  storageClassName: standard

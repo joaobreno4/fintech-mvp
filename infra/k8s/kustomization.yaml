@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Namespace aplicado a todos os recursos filhos
+namespace: fintech
+
+resources:
+  # ── Base ────────────────────────────────────────────────────────────────────
+  - base/namespace.yaml
+  - base/secret.yaml
+  - base/configmap.yaml
+
+  # ── Infraestrutura ──────────────────────────────────────────────────────────
+  - infra/postgres
+  - infra/kafka
+
+  # ── Aplicações (Etapa 2) ────────────────────────────────────────────────────
+  # - apps/transaction-service
+  # - apps/account-service
+  # - apps/fintech-dashboard
+
+  # ── Observabilidade (Etapa 3) ───────────────────────────────────────────────
+  # - observability/jaeger
+  # - observability/prometheus
+  # - observability/grafana

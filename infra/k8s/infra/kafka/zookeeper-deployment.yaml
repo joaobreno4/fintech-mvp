@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zookeeper
+  namespace: fintech
+  labels:
+    app.kubernetes.io/name: zookeeper
+    app.kubernetes.io/part-of: fintech-mvp
+    app.kubernetes.io/component: messaging
+    app.kubernetes.io/version: "7.6.1"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: zookeeper
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: zookeeper
+        app.kubernetes.io/part-of: fintech-mvp
+        app.kubernetes.io/component: messaging
+    spec:
+      containers:
+        - name: zookeeper
+          image: confluentinc/cp-zookeeper:7.6.1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: client
+              containerPort: 2181
+              protocol: TCP
+
+          env:
+            - name: ZOOKEEPER_CLIENT_PORT
+              value: "2181"
+            - name: ZOOKEEPER_TICK_TIME
+              value: "2000"
+            # Desabilita log de auditoria para reduzir ruído em dev
+            - name: KAFKA_OPTS
+              value: "-Dzookeeper.4lw.commands.whitelist=ruok,stat,mntr"
+
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - echo ruok | nc localhost 2181 | grep imok
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - echo ruok | nc localhost 2181 | grep imok
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "300m"
+              memory: "512Mi"

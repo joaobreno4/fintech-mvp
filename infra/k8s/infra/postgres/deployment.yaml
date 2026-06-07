@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: fintech
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/part-of: fintech-mvp
+    app.kubernetes.io/component: database
+    app.kubernetes.io/version: "16"
+spec:
+  replicas: 1
+  # Estratégia Recreate: garante que o PVC (ReadWriteOnce) seja liberado
+  # antes de o novo Pod montar o volume. Evita conflito de mount.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgres
+        app.kubernetes.io/part-of: fintech-mvp
+        app.kubernetes.io/component: database
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+
+          # Credenciais injetadas do Secret (nunca hardcoded no manifesto)
+          envFrom:
+            - secretRef:
+                name: fintech-postgres-secret
+
+          # Liveness: reinicia o container se o processo travar
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - fintech_admin
+                - -d
+                - fintech
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+
+          # Readiness: só roteia tráfego quando o Postgres aceitar conexões
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - fintech_admin
+                - -d
+                - fintech
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+              # Subpath evita conflito com o diretório raiz do volume
+              subPath: pgdata
+
+      volumes:
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: postgres-pvc
