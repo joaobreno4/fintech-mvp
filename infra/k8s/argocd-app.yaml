@@ -19,6 +19,11 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 
 spec:
+  # Projeto ArgoCD ao qual esta Application pertence.
+  # "default" é o projeto criado automaticamente na instalação.
+  # Em produção, crie projetos dedicados com RBAC granular por equipe.
+  project: default
+
   # ── Fonte: repositório Git ──────────────────────────────────────────────────
   source:
     repoURL: https://github.com/joaobreno4/fintech-mvp
