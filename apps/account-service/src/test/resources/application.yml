@@ -1,0 +1,49 @@
+# ── Configuração exclusiva para o contexto de testes de integração ────────────
+# Este arquivo substitui o application.yml de main/resources durante os testes.
+# O @DynamicPropertySource em BaseIntegrationTest sobrescreve em runtime:
+#   spring.datasource.url/username/password  →  Testcontainers PostgreSQL
+#   spring.kafka.bootstrap-servers           →  Testcontainers Kafka
+#
+# Todas as propriedades obrigatórias (sem default) devem estar declaradas aqui
+# para o ApplicationContext subir sem erros de placeholder não resolvido.
+
+spring:
+  datasource:
+    # Placeholder — sobrescrito em runtime pelo @DynamicPropertySource.
+    # Precisa existir para o HikariCP não falhar antes do override.
+    url: jdbc:postgresql://localhost:5432/fintech
+    username: fintech_admin
+    password: fintech_pass
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      # create-drop: cria o schema ao subir o contexto e derruba ao encerrar.
+      # Necessário porque o Testcontainers sobe um Postgres vazio — não há
+      # schema pré-existente para o 'validate' (padrão de produção) validar.
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: false
+    open-in-view: false
+
+  kafka:
+    # Placeholder — sobrescrito em runtime pelo @DynamicPropertySource.
+    bootstrap-servers: localhost:9092
+    consumer:
+      # group-id é injetado via @Value no KafkaConsumerConfig — obrigatório.
+      group-id: account-service-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
+# Desabilita tracing nos testes para evitar tentativas de conexão ao Jaeger.
+management:
+  tracing:
+    sampling:
+      probability: 0.0
+  otlp:
+    tracing:
+      endpoint: http://localhost:4318/v1/traces
