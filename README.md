@@ -114,7 +114,7 @@ account-service (KafkaListener)
 
 ## Mecanismos de Resiliência
 
-### 🔒 Transactional Outbox Pattern
+### Transactional Outbox Pattern
 A escrita da transferência e do evento de domínio ocorre em **uma única transação de banco de dados**. Se o Kafka estiver indisponível no momento da criação, o evento permanece na tabela `outbox_events` com status `PENDING` e será retransmitido pelo `OutboxRelayService` assim que o broker se recuperar. **Nenhuma transação é perdida por queda do broker.**
 
 - Polling a cada **5 segundos** com `SELECT FOR UPDATE SKIP LOCKED` (sem contenção entre réplicas)
@@ -122,7 +122,7 @@ A escrita da transferência e do evento de domínio ocorre em **uma única trans
 - Backoff exponencial: **2 → 4 → 8 → 16 minutos** entre tentativas
 - Após **5 tentativas falhas**: status promovido para `DEAD_LETTER` + alerta Prometheus instantâneo
 
-### 🛡️ Barreira de Idempotência Dupla
+### Barreira de Idempotência Dupla
 
 **Lado Produtor (transaction-service):**
 - Header HTTP `Idempotency-Key` obrigatório (gerado como `crypto.randomUUID()` no dashboard)
@@ -141,13 +141,13 @@ Mensagens com payload malformado (ex: JSON inválido, campos ausentes) disparam 
 - Dashboard exibe banner de alerta crítico animado quando `deadLetter > 0`
 - Endpoint de recuperação manual: `POST /admin/outbox/recover`
 
-### 📡 Tracing Distribuído (OpenTelemetry + Jaeger)
+### Tracing Distribuído (OpenTelemetry + Jaeger)
 Cada requisição HTTP e cada mensagem Kafka carregam um `traceId` propagado via **W3C TraceContext**. O pipeline de instrumentação usa **Micrometer Tracing → OpenTelemetry SDK → Jaeger OTLP/HTTP** com **100% de sampling** em desenvolvimento.
 
 - Visualização de spans end-to-end: `Dashboard → transaction-service → Kafka → account-service`
 - Receptor OTLP/HTTP em `jaeger:4318`, OTLP/gRPC em `jaeger:4317`
 
-### 📊 Métricas Customizadas (Prometheus + Grafana)
+### Métricas Customizadas (Prometheus + Grafana)
 Três gauges customizados expostos via `/actuator/prometheus`:
 
 | Métrica | Descrição |
@@ -395,3 +395,5 @@ JVM flags:          -Xms256m -Xmx512m -XX:MaxRAMPercentage=75
 *Construído com foco em consistência eventual, resiliência operacional e observabilidade de produção.*
 
 </div>
+
+Criado por João Breno, em busca de evolução a cada dia!
