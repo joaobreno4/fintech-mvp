@@ -6,19 +6,24 @@ kind: Kustomization
 # para o repositório. O Kustomize faz o download no momento do apply.
 #
 # Versão pinada: v2.11.3 (LTS atual em Jun/2026).
-# Para atualizar: troque a tag e rode `kubectl kustomize infra/k8s/argocd/ | kubectl apply -f -`
+# Para atualizar: troque a tag e rode:
+#   kubectl kustomize infra/k8s/argocd/ | kubectl apply -f -
 # Changelog: https://github.com/argoproj/argo-cd/releases/tag/v2.11.3
 resources:
   - namespace.yaml
   - https://raw.githubusercontent.com/argoproj/argo-cd/v2.11.3/manifests/install.yaml
 
-# Força todos os recursos do manifesto upstream para o namespace argocd.
-# Sem isso, alguns CRDs e ClusterRoles ficam sem namespace e podem conflitar.
-namespace: argocd
+# ── IMPORTANTE: sem campo `namespace:` aqui ───────────────────────────────────
+# O manifesto upstream install.yaml já declara `namespace: argocd` em todos os
+# seus recursos (Deployments, Services, ConfigMaps, RBAC, etc.).
+# Adicionar `namespace: argocd` aqui causaria o mesmo ID conflict:
+# o transformador tentaria reescrever namespaces já definidos, gerando
+# duplicatas com o mesmo ID (ex: Namespace/argocd/argocd).
+# O namespace.yaml também já declara `name: argocd` — sem transformação necessária.
 
-# ── Patches de hardening para Minikube (dev) ─────────────────────────────────
-# Remove o HorizontalPodAutoscaler do argocd-server (não há metrics-server
-# habilitado por padrão no Minikube, o que causaria erro de reconciliação).
+# ── Patch de hardening para Minikube (dev) ────────────────────────────────────
+# Remove o ApplicationSet controller — opcional em dev, reduz footprint de memória.
+# Reative em produção removendo este bloco patches.
 patches:
   - patch: |-
       $patch: delete
@@ -30,5 +35,3 @@ patches:
     target:
       kind: Deployment
       name: argocd-applicationset-controller
-      # ApplicationSet controller é opcional em dev — reduz footprint de memória.
-      # Reative em produção removendo este patch.
