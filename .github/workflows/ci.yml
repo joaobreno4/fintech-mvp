@@ -34,7 +34,7 @@ jobs:
           cache: "maven"
 
       - name: "🔍 Verificar versão do Docker (Testcontainers precisa do daemon)"
-        run: docker info --format "Docker {{.ServerVersion}} | Engine API {{.ServerAPIVersion}}"
+        run: docker version
 
       - name: "📦 Baixar dependências Maven (cache warm-up)"
         working-directory: apps/transaction-service
@@ -90,7 +90,7 @@ jobs:
           cache: "maven"
 
       - name: "🔍 Verificar versão do Docker (Testcontainers precisa do daemon)"
-        run: docker info --format "Docker {{.ServerVersion}} | Engine API {{.ServerAPIVersion}}"
+        run: docker version
 
       - name: "📦 Baixar dependências Maven (cache warm-up)"
         working-directory: apps/account-service
