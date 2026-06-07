@@ -7,6 +7,12 @@ on:
     branches: [main]
     types: [opened, synchronize, reopened]
 
+# Ryuk desativado globalmente: o runner ubuntu-latest é efémero e destruído
+# após cada run, tornando a limpeza de containers desnecessária.
+# Evita falhas por rate limit / instabilidade do Docker Hub ao puxar ryuk:0.11.0.
+env:
+  TESTCONTAINERS_RYUK_DISABLED: "true"
+
 # Cancela runs anteriores do mesmo PR/branch para economizar minutos de Actions
 concurrency:
   group: ci-${{ github.ref }}
@@ -44,8 +50,6 @@ jobs:
         working-directory: apps/transaction-service
         run: mvn test -B
         env:
-          # Testcontainers usa o socket do Docker do runner ubuntu-latest
-          TESTCONTAINERS_RYUK_DISABLED: "false"
           DOCKER_HOST: "unix:///var/run/docker.sock"
 
       - name: "🔬 Rodar testes de integração (Outbox + Idempotência)"
@@ -54,7 +58,6 @@ jobs:
         # Cobre: TransferControllerIT (atomicidade Outbox, barreira Idempotency-Key)
         run: mvn verify -B -DskipTests=false
         env:
-          TESTCONTAINERS_RYUK_DISABLED: "false"
           DOCKER_HOST: "unix:///var/run/docker.sock"
           # Aumenta timeout do Testcontainers para ambientes CI com pull de imagem lento
           TESTCONTAINERS_PULL_PAUSE_TIMEOUT: "120"
@@ -100,7 +103,6 @@ jobs:
         working-directory: apps/account-service
         run: mvn test -B
         env:
-          TESTCONTAINERS_RYUK_DISABLED: "false"
           DOCKER_HOST: "unix:///var/run/docker.sock"
 
       - name: "🔬 Rodar testes de integração (Consumer + Idempotência)"
@@ -108,7 +110,6 @@ jobs:
         # Cobre: AccountConsumerIT (débito/crédito atômico, descarte de duplicatas)
         run: mvn verify -B -DskipTests=false
         env:
-          TESTCONTAINERS_RYUK_DISABLED: "false"
           DOCKER_HOST: "unix:///var/run/docker.sock"
           TESTCONTAINERS_PULL_PAUSE_TIMEOUT: "120"
 
